@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.alexdont.tmux-helper",
+  "name": "Tmux Helper",
+  "version": "0.1.0",
+  "author": "alexdont",
+  "license": "MIT",
+  "description": "A curated tmux cheat-sheet that shrinks as you learn: search the essential default bindings, pin favorites, and mark ones learned or irrelevant to hide them",
+  "kinds": [
+    "bar-widget",
+    "overlay"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml",
+    "overlay": "Overlay.qml"
+  },
+  "barWidget": {
+    "displayName": "Tmux Helper",
+    "description": "How many tmux shortcuts are left to learn; click to open the cheat sheet.",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}
