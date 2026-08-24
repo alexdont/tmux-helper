@@ -12,7 +12,10 @@ or **irrelevant** and they get out of your way. What's left is your personal
 
 ## Install
 
-Requires Omarchy 4.x (Quattro).
+Requires Omarchy 4.x (Quattro). No hard dependencies beyond the Omarchy
+shell itself: `tmux` is optional — with it, the sheet shows your real prefix
+and the Ctrl+E "More" sections parse your live config; without it, the
+curated list still works with stock defaults.
 
 ```bash
 omarchy plugin add https://github.com/alexdont/tmux-helper.git --enable
@@ -48,3 +51,13 @@ plain JSON, dotfiles-friendly.
 ## License
 
 MIT
+
+## Remove
+
+```bash
+omarchy plugin remove io.github.alexdont.tmux-helper
+```
+
+Curation state is left behind at `~/.local/state/omarchy/io.github.alexdont.tmux-helper/`;
+delete that folder too if you want a clean slate. The plugin never modifies
+any other configuration — the optional keybinding above is added by you.
