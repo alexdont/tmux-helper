@@ -2,6 +2,8 @@
 
 A curated tmux cheat-sheet that shrinks as you learn.
 
+![The Tmux Helper overlay: pinned and grouped shortcuts with search, progress count, and curation buttons](preview.png)
+
 Instead of dumping all 200+ tmux bindings on you, Tmux Helper shows the ~40
 default bindings that actually matter — hand-picked, grouped, and described
 in plain language. As you get better, you curate: mark shortcuts **learned**
