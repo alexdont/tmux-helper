@@ -102,9 +102,12 @@ Item {
     var learned = {}, irrelevant = {}, pinned = {}
     try {
       var parsed = JSON.parse(raw)
+      // Ids are short slugs ("pane-zoom", "x:table:key"); anything longer, or
+      // beyond 1000 per list, is not state this plugin wrote.
       var toSet = function(list, into) {
         if (!Array.isArray(list)) return
-        for (var j = 0; j < list.length; j++) into[list[j]] = true
+        for (var j = 0; j < Math.min(list.length, 1000); j++)
+          if (typeof list[j] === "string" && list[j].length <= 128) into[list[j]] = true
       }
       toSet(parsed.learned, learned)
       toSet(parsed.irrelevant, irrelevant)
@@ -211,14 +214,16 @@ Item {
     }
     var out = []
     var lines = raw.split("\n")
-    for (var j = 0; j < lines.length; j++) {
+    // Entry and field caps so a crafted config can't balloon the model; real
+    // configs sit far below all three.
+    for (var j = 0; j < lines.length && out.length < 400; j++) {
       var m = lines[j].match(/^bind-key\s+(?:-r\s+)?-T\s+(\S+)\s+(\S+)\s+(.*)$/)
       if (!m) continue
       var table = m[1]
       if (!(table in tables)) continue
-      var key = m[2].replace(/^["']|["']$/g, "").replace(/^\\/, "")
+      var key = m[2].replace(/^["']|["']$/g, "").replace(/^\\/, "").slice(0, 64)
       if (Bindings.isCovered(table, key)) continue
-      out.push({ id: "x:" + table + ":" + key, group: tables[table], key: key, desc: m[3], table: table })
+      out.push({ id: "x:" + table + ":" + key, group: tables[table], key: key, desc: m[3].slice(0, 200), table: table })
     }
     return out
   }
@@ -324,7 +329,9 @@ Item {
 
   Process {
     id: extrasProbe
-    command: ["sh", "-c", "tmux list-keys 2>/dev/null || tmux -L omarchy-tmux-helper -f /dev/null start-server \\; list-keys \\; kill-server 2>/dev/null || true"]
+    // head -c bounds what a huge or hostile tmux config can feed the parser;
+    // a stock list-keys dump is ~10 KB, so 128 KB loses nothing real.
+    command: ["sh", "-c", "{ tmux list-keys 2>/dev/null || tmux -L omarchy-tmux-helper -f /dev/null start-server \\; list-keys \\; kill-server 2>/dev/null || true; } | head -c 131072"]
     running: true
     stdout: StdioCollector {
       onStreamFinished: {
@@ -336,11 +343,11 @@ Item {
 
   Process {
     id: prefixProbe
-    command: ["sh", "-c", "tmux show-option -gv prefix 2>/dev/null || true"]
+    command: ["sh", "-c", "{ tmux show-option -gv prefix 2>/dev/null || true; } | head -c 64"]
     running: true
     stdout: StdioCollector {
       onStreamFinished: {
-        var out = text.trim()
+        var out = text.trim().slice(0, 32)
         if (out) root.tmuxPrefix = out
         if (root.opened) root.rebuild()
       }
@@ -453,6 +460,7 @@ Item {
             anchors.rightMargin: Style.spacing.md
             anchors.verticalCenter: parent.verticalCenter
             text: root.filterText || "Search tmux shortcuts…"
+            textFormat: Text.PlainText
             color: root.foreground
             opacity: root.filterText ? 1 : 0.58
             font.family: root.fontFamily
@@ -542,6 +550,8 @@ Item {
                     id: keyLabel
                     anchors.centerIn: parent
                     text: keyText
+                    // Live tmux strings render literally, never as rich text.
+                    textFormat: Text.PlainText
                     color: root.selectedText
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
@@ -553,6 +563,7 @@ Item {
                   anchors.verticalCenter: parent.verticalCenter
                   text: (isPinned ? "󰐃 " : "") + desc
                     + (status === "learned" ? "  ✓ learned" : status === "irrelevant" ? "  ✕ irrelevant" : "")
+                  textFormat: Text.PlainText
                   color: root.foreground
                   opacity: parent.parent.dimmed ? 0.45 : 1
                   font.family: root.fontFamily
@@ -632,6 +643,7 @@ Item {
             Text {
               text: root.filterText ? "No matches for “" + root.filterText + "”"
                 : "All " + root.totalCount + " shortcuts handled — you know tmux."
+              textFormat: Text.PlainText
               color: root.foreground
               opacity: 0.7
               font.family: root.fontFamily
@@ -649,6 +661,7 @@ Item {
           text: "↵ learned · Del irrelevant · ^P pin · ^Z undo · ^A archived · ^E "
             + (root.showExtras ? "hide" : "show") + " all · Esc close"
             + "   —   prefix: " + root.tmuxPrefix
+          textFormat: Text.PlainText
           color: root.foreground
           opacity: 0.5
           font.family: root.fontFamily
