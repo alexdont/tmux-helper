@@ -100,8 +100,14 @@ Item {
 
   function loadState(raw) {
     var learned = {}, irrelevant = {}, pinned = {}
+    // Bound + descriptor-validate before parsing: the read is already capped at
+    // 64KB (stateReader), and real state is far smaller. Reject anything over
+    // the cap or that isn't a plain JSON object, so a swapped-in oversized or
+    // malformed file is discarded rather than parsed into the shell.
+    if (typeof raw !== "string" || raw.length > 65536) raw = "{}"
     try {
       var parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) parsed = {}
       // Ids are short slugs ("pane-zoom", "x:table:key"); anything longer, or
       // beyond 1000 per list, is not state this plugin wrote.
       var toSet = function(list, into) {
@@ -312,20 +318,34 @@ Item {
     return displayModel.get(selectedIndex).bid
   }
 
-  Component.onCompleted: Quickshell.execDetached(["mkdir", "-p", root.stateDir])
+  Component.onCompleted: {
+    Quickshell.execDetached(["mkdir", "-p", root.stateDir])
+    root.reloadState()
+  }
 
   ListModel { id: displayModel }
 
+  // FileView is used for WRITING only (atomic setText). Reading goes through a
+  // hard byte cap (see stateReader) so an oversized or malformed state file
+  // can't be read into the shell and parsed before the retention limits apply.
   FileView {
     id: stateFile
     path: root.stateDir + "/state.json"
-    watchChanges: true
     atomicWrites: true
     printErrors: false
-    onLoaded: root.loadState(text())
-    onLoadFailed: root.loadState("{}")
-    onFileChanged: reload()
   }
+
+  // Bounded, descriptor-validated read of the persisted state: `head -c` caps
+  // the bytes that ever reach the runtime (real state is a few KB — three lists
+  // of ≤1000 short slugs), and loadState validates the shape before trusting
+  // it. The path is passed positionally, never spliced into the shell string.
+  Process {
+    id: stateReader
+    command: ["sh", "-c", "head -c 65536 \"$1\" 2>/dev/null", "sh",
+              root.stateDir + "/state.json"]
+    stdout: StdioCollector { onStreamFinished: root.loadState(text) }
+  }
+  function reloadState() { if (!stateReader.running) stateReader.running = true }
 
   Process {
     id: extrasProbe
