@@ -325,14 +325,18 @@ Item {
 
   ListModel { id: displayModel }
 
-  // FileView is used for WRITING only (atomic setText). Reading goes through a
-  // hard byte cap (see stateReader) so an oversized or malformed state file
-  // can't be read into the shell and parsed before the retention limits apply.
+  // FileView is used for WRITING ONLY (atomic setText). preload: false stops it
+  // from independently materializing state.json into the shell — otherwise it
+  // could load the whole (replaceable, possibly oversized) file outside the
+  // bounded, descriptor-safe read path. All reading goes through stateReader
+  // (a no-follow/non-blocking descriptor capped at 64KB); nothing reads through
+  // this FileView (no text()/reload()).
   FileView {
     id: stateFile
     path: root.stateDir + "/state.json"
     atomicWrites: true
     printErrors: false
+    preload: false
   }
 
   // Bounded, descriptor-safe read of the persisted state. A plain `head -c`
