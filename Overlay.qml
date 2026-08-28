@@ -335,14 +335,25 @@ Item {
     printErrors: false
   }
 
-  // Bounded, descriptor-validated read of the persisted state: `head -c` caps
-  // the bytes that ever reach the runtime (real state is a few KB — three lists
-  // of ≤1000 short slugs), and loadState validates the shape before trusting
-  // it. The path is passed positionally, never spliced into the shell string.
+  // Bounded, descriptor-safe read of the persisted state. A plain `head -c`
+  // still does a blocking, symlink-following open, so instead we open ONE
+  // descriptor with O_NOFOLLOW (a symlink can't redirect the read) and
+  // O_NONBLOCK (a planted FIFO can't block us), fstat it as a regular file,
+  // and read the capped 64KB from that SAME descriptor before any parsing.
+  // Real state is a few KB (three lists of ≤1000 short slugs). The path is
+  // passed positionally as argv, never spliced into a shell string. If python3
+  // is somehow absent the read just yields nothing and we fall back to empty
+  // state — the plugin still runs, it just doesn't restore saved settings.
   Process {
     id: stateReader
-    command: ["sh", "-c", "head -c 65536 \"$1\" 2>/dev/null", "sh",
-              root.stateDir + "/state.json"]
+    command: ["python3", "-c",
+      "import os,sys,stat\n" +
+      "try: fd=os.open(sys.argv[1],os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)\n" +
+      "except OSError: sys.exit(0)\n" +
+      "try:\n" +
+      "    if stat.S_ISREG(os.fstat(fd).st_mode): sys.stdout.buffer.write(os.read(fd,65536))\n" +
+      "finally: os.close(fd)\n",
+      root.stateDir + "/state.json"]
     stdout: StdioCollector { onStreamFinished: root.loadState(text) }
   }
   function reloadState() { if (!stateReader.running) stateReader.running = true }
